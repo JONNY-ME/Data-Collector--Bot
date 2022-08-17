@@ -1,5 +1,4 @@
 import logging
-from tracemalloc import start
 from decouple import config
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
