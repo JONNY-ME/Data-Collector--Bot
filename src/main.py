@@ -8,8 +8,8 @@ from utilities import get_inine_markup
 
 
 API_TOKEN = config('API')
-NUMBERS = ["ዜሮ", "አንድ", "ሁለት", "ሶስት", "አራት", "አምድት", "ስድስት", "ሰባት", "ስምንት", "ዘጠኝ", "አስር"]
-
+NUMBERS = ["ዜሮ", "አንድ", "ሁለት", "ሶስት", "አራት", "አምስት", "ስድስት", "ሰባት", "ስምንት", "ዘጠኝ", "አስር"]
+CHANNEL_ID = -1001710132278
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +22,7 @@ dp = Dispatcher(bot, storage=storage)
 
 class Form(StatesGroup):
     anv = State()
+    anv_2 = State()
 
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
@@ -39,7 +40,6 @@ async def send_welcome(message: types.Message):
     keyboard_markup = get_inine_markup(
         (
             ('Amharic Numbers Voice', 'amharic_numbers_voice'),
-            # (),
         )
     )
 
@@ -49,11 +49,12 @@ async def send_welcome(message: types.Message):
         reply_markup=keyboard_markup
     )
 
+
+##############################################################################################
+# Amharic Numbers Voice #
 @dp.callback_query_handler(text='amharic_numbers_voice')  
 async def anv_inline_answer_callback_handler(query: types.CallbackQuery):
     answer_data = query.data
-    # always answer callback queries, even if you have nothing to say
-    # await query.answer(f'You answered with {answer_data!r}')
 
     keyboard_markup = get_inine_markup(
         (
@@ -62,10 +63,11 @@ async def anv_inline_answer_callback_handler(query: types.CallbackQuery):
         )
     )
 
-    await bot.send_message(
-        query.from_user.id, 
+    await query.message.edit_text(
         "ለዚኛው ጥናት ከ 0 እስከ 10 ድረስ ያሉትን ቁጥሮች በአማርኛ ድምፅ ያስፈልገናል።\
-        \nስለሆነም የቴሌግራም voice recorder በመጠቀም ይላኩልን። ስለ ሂደቱ እርዳታ ከፈለጉ ከስር help የሚለውን ይጫኑ። ዝግጁ ከሆኑ start የሚለውን ይጫኑ።\
+        ሁሉም ሪከርዶች ከ 1 - 5 ሰከንድ ባለው ውስጥ ቢሆኑ ይመረጣል። የድምፁ ጥራት አስፈላጊ አይደለም!\
+        \nስለሆነም የቴሌግራም voice recorder በመጠቀም ይላኩልን። ስለ ሂደቱ እርዳታ ከፈለጉ \
+        ከስር help የሚለውን ይጫኑ። ዝግጁ ከሆኑ start የሚለውን ይጫኑ።\
         \n\n⚠️እባኮትን  ዳታውን ለጥናታዊ ጽሑፍ ስለምንጠቀመው ትክክለኛ ነገር እንዳስገቡ እርግጠኛ ይሁኑ!",
         reply_markup=keyboard_markup
 )
@@ -78,22 +80,78 @@ async def anv_start_help_handler(query : types.CallbackQuery, state: FSMContext)
         await Form.anv.set()
         async with state.proxy() as data:
             data['current'] = 0
+            data['voices'] = [None for i in range(11)]
         await bot.send_message(
             query.from_user.id,
-            "ሁሉም ሪከርዶች ከ 3 - 10 ሰከንድ ባለው ውስጥ ቢሆኑ ይመረጣል። የድምፁ ጥራት አስፈላጊ አይደለም!\
-            \nእባኮትን ዜሮ በማለት ሪከርድ አድርገው ይላኩ!"
+            "nእባኮትን ዜሮ በማለት ሪከርድ አድርገው ይላኩ!"
         )
     elif answer == "anv_help":
         pass 
 
-
-
 @dp.message_handler(state=Form.anv)
-async def process_voice_accepting(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        print(data['current'])
+@dp.message_handler(content_types=['voice'], state=Form.anv)
+async def anv_voice_handler(message: types.Message, state: FSMContext):
+    # check if message is voice message
+    if message.voice:
+        confirm_keyboard = get_inine_markup([
+            ("Next", "anv_confirm"),
+            ("Retake", "anv_cancel"),
+        ])
+        await message.reply(
+            "ወደቀጣይ ለመሄድ Next ይጫኑ። ድጋሚ ለመቅዳት Retake ይጫኑ።",
+            reply_markup=confirm_keyboard
+        )
+        async with state.proxy() as data:
+            data['voices'][data['current']] = message.voice.file_id
+        await Form.next()
+    else:
+        async with state.proxy() as data:
+            await message.reply(f"የሚሰጥም ምንጭ ከሆነም አይደለም። እባኮትን {NUMBERS[data['current']]} በማለት ሪከርድ አድርገው ይላኩ!")
+        return
 
-    print(message)
+
+@dp.callback_query_handler(text=['anv_confirm', 'anv_cancel'], state=Form.anv_2)
+async def anv_confirm_cancel_handler(query : types.CallbackQuery, state: FSMContext):
+    answer = query.data
+    if answer == "anv_confirm":
+        async with state.proxy() as data:
+            data['current'] += 1
+            if data['current'] == 11:
+                await bot.send_message(
+                    query.from_user.id,
+                    "ሁሉም ሪከርዶች ተሰጠው እርግጠኛ ይመረጣል። ከሆነም የተሰጠው ሪከርድ በማለት ላይ መመልከት ይችላሉ።"
+                ) 
+                # send all messages to the channel with caption the name of the user and NUMBER of the voice message
+                for i in range(11):
+                    await bot.send_voice(
+                        CHANNEL_ID,
+                        data['voices'][i],
+                        caption=f"{query.from_user.first_name} {NUMBERS[i]}"
+                    )
+                await Form.finish()
+            else:
+                await query.answer("ሪከርዱ ተቀምጧል✅")
+                await bot.delete_message(query.message.chat.id, query.message.message_id)
+                await bot.send_message(
+                    query.from_user.id,
+                    f"እባኮትን {NUMBERS[data['current']]} በማለት ሪከርድ አድርገው ይላኩ!"
+                )
+                await Form.anv.set()
+
+    elif answer == "anv_cancel":
+        async with state.proxy() as data:
+            await bot.delete_message(query.message.chat.id, query.message.message_id)
+            await bot.send_message(
+                query.from_user.id,
+                f"እባኮትን {NUMBERS[data['current']]} በማለት ሪከርድ አድርገው ይላኩ!"
+            )
+            
+            await Form.anv.set()
+
+
+
+##############################################################################################
+
 
 
 if __name__ == '__main__':
