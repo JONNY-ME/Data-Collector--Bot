@@ -133,11 +133,6 @@ async def anv_confirm_cancel_handler(query : types.CallbackQuery, state: FSMCont
         async with state.proxy() as data:
             data['current'] += 1
             if data['current'] == 11:
-                await bot.send_message(
-                    query.from_user.id,
-                    "ሁሉም ሪከርዶች ተሰጠው እርግጠኛ ይመረጣል። ከሆነም የተሰጠው ሪከርድ በማለት ላይ መመልከት ይችላሉ።"
-                ) 
-
                 for i in range(11):
                     await bot.send_voice(
                         CHANNEL_ID,
